@@ -39,6 +39,15 @@ jobs:
           npx playwright install --with-deps chromium
           npm run test:coverage
 
+      - name: Check if coverage file exists
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "Coverage file exists"
+          else
+            echo "Coverage file does not exist"
+          exit 1
+          fi
+
       - name: Check coverage (MUST BE ≥80%)
         run: |
           coverage=$(jq '.total.lines.pct' coverage/coverage-summary.json)
