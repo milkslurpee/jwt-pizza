@@ -1,6 +1,6 @@
 # 🍕 JWT Pizza
 
-![Badge Label](https://pizza-factory.cs329.click/api/badge/js2485/jwtpizzacoverage)
+![Coverage](https://pizza-factory.cs329.click/api/badge/js2485/jwtpizzacoverage?t=1)
 
 'HELLO!!!'
 
