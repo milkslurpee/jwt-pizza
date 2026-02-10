@@ -197,24 +197,46 @@ async function basicInit(page: Page) {
 	});
 
 	// Standard franchises and stores
+	// Remove ALL existing /api/franchise route handlers and replace with:
+
+	// GET /api/franchise - List franchises
 	await page.route(/\/api\/franchise(\?.*)?$/, async (route) => {
-		const franchiseRes = {
-			franchises: [
-				{
-					id: 2,
-					name: "LotaPizza",
-					stores: [
-						{ id: 4, name: "Lehi" },
-						{ id: 5, name: "Springville" },
-						{ id: 6, name: "American Fork" },
-					],
+		const method = route.request().method();
+
+		if (method === "GET") {
+			const franchiseRes = {
+				franchises: franchises.map((f) => ({
+					id: f.id,
+					name: f.name,
+					admins: f.admins,
+					stores: f.stores.map((s) => ({ id: s.id, name: s.name })),
+				})),
+			};
+			await route.fulfill({ json: franchiseRes });
+		} else if (method === "POST") {
+			// Create new franchise
+			const data = route.request().postDataJSON();
+			const newFranchise = {
+				id: franchises.length + 100, // Use a high number to avoid conflicts
+				name: data.name,
+				admins: data.admins || [{ email: data.adminEmail }],
+				stores: [],
+				totalRevenue: 0,
+			};
+
+			franchises.push(newFranchise);
+
+			await route.fulfill({
+				json: {
+					id: newFranchise.id,
+					name: newFranchise.name,
+					admins: newFranchise.admins,
+					stores: [],
 				},
-				{ id: 3, name: "PizzaCorp", stores: [{ id: 7, name: "Spanish Fork" }] },
-				{ id: 4, name: "topSpot", stores: [] },
-			],
-		};
-		expect(route.request().method()).toBe("GET");
-		await route.fulfill({ json: franchiseRes });
+			});
+		} else {
+			await route.continue();
+		}
 	});
 
 	// Order a pizza.
@@ -226,22 +248,6 @@ async function basicInit(page: Page) {
 		};
 		expect(route.request().method()).toBe("POST");
 		await route.fulfill({ json: orderRes });
-	});
-
-	//Create a new Franchise
-	await page.route("*/**/api/franchise", async (route) => {
-		const FranchReq = route.request().postDataJSON();
-		const franchiseRes = {
-			id: 75, // fake ID for the new franchise
-			name: FranchReq.name,
-			admins: FranchReq.admins.map((a: any, i: number) => ({
-				id: i + 1, // mock IDs for admins
-				email: a.email,
-				name: a.name || a.email, // fallback name
-			})),
-		};
-		expect(route.request().method()).toBe("POST");
-		await route.fulfill({ json: franchiseRes });
 	});
 
 	await page.route("*/**/api/franchise/:franchiseId/store", async (route) => {
