@@ -442,7 +442,7 @@ test("create franchise", async ({ page }) => {
 	await page.getByRole("button", { name: "Create" }).click();
 });
 
-test("franchise store creation", async ({ page }) => {
+test("store creation", async ({ page }) => {
 	await page.route("*/**/api/auth", async (route) => {
 		const loginReq = { email: "f@jwt.com", password: "f" };
 		const loginRes = {
