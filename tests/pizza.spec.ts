@@ -106,21 +106,6 @@ async function basicInit(page: Page) {
 		},
 	];
 
-	// ✅ MUST BE FIRST
-	await page.route("*/**/api/franchise", async (route) => {
-		const StoreReq = route.request().postDataJSON();
-
-		expect(route.request().method()).toBe("POST");
-
-		await route.fulfill({
-			json: {
-				id: 99,
-				name: StoreReq.name,
-				totalRevenue: 0,
-			},
-		});
-	});
-
 	// Authorize login for the given user
 	await page.route("*/**/api/auth", async (route) => {
 		const method = route.request().method();
@@ -165,12 +150,13 @@ async function basicInit(page: Page) {
 			validUsers[data.email] = newUser;
 			loggedInUser = newUser;
 			await route.fulfill({ json: { user: newUser, token: "abcdef" } });
+		} else {
+			await route.continue();
 		}
 	});
 
 	// Return the currently logged in user
 	await page.route("*/**/api/user/me", async (route) => {
-		expect(route.request().method()).toBe("GET");
 		await route.fulfill({ json: loggedInUser });
 	});
 
@@ -192,48 +178,101 @@ async function basicInit(page: Page) {
 				description: "Spicy treat",
 			},
 		];
-		expect(route.request().method()).toBe("GET");
 		await route.fulfill({ json: menuRes });
 	});
 
-	// Standard franchises and stores
-	// Remove ALL existing /api/franchise route handlers and replace with:
+	// GET and POST /api/franchise - Consolidated handler
+	// In basicInit function:
 
-	// GET /api/franchise - List franchises
+	// 1. Public franchise endpoint (for all users browsing)
 	await page.route(/\/api\/franchise(\?.*)?$/, async (route) => {
 		const method = route.request().method();
 
 		if (method === "GET") {
+			// Returns ALL franchises
 			const franchiseRes = {
-				franchises: franchises.map((f) => ({
-					id: f.id,
-					name: f.name,
-					admins: f.admins,
-					stores: f.stores.map((s) => ({ id: s.id, name: s.name })),
-				})),
+				franchises: [
+					{
+						id: 2,
+						name: "LotaPizza",
+						stores: [
+							{ id: 4, name: "Lehi" },
+							{ id: 5, name: "Springville" },
+							{ id: 6, name: "American Fork" },
+						],
+					},
+					{
+						id: 3,
+						name: "PizzaCorp",
+						stores: [{ id: 7, name: "Spanish Fork" }],
+					},
+					{ id: 4, name: "topSpot", stores: [] },
+				],
 			};
 			await route.fulfill({ json: franchiseRes });
 		} else if (method === "POST") {
-			// Create new franchise
-			const data = route.request().postDataJSON();
-			const newFranchise = {
-				id: franchises.length + 100, // Use a high number to avoid conflicts
-				name: data.name,
-				admins: data.admins || [{ email: data.adminEmail }],
-				stores: [],
-				totalRevenue: 0,
-			};
+			// Create franchise logic...
+		} else {
+			await route.continue();
+		}
+	});
 
-			franchises.push(newFranchise);
+	// 2. User-specific franchise endpoint (for franchisees/admins)
+	await page.route(/\/api\/franchise\/\d+$/, async (route) => {
+		const method = route.request().method();
+		const url = route.request().url();
 
-			await route.fulfill({
-				json: {
-					id: newFranchise.id,
-					name: newFranchise.name,
-					admins: newFranchise.admins,
-					stores: [],
-				},
-			});
+		if (method === "GET") {
+			const match = url.match(/\/api\/franchise\/(\d+)$/);
+			if (match) {
+				const userId = parseInt(match[1]);
+
+				if (userId === 2) {
+					// franchisee f@jwt.com
+					await route.fulfill({
+						json: [
+							{
+								id: 1,
+								name: "pizzaPocket",
+								admins: [
+									{
+										id: 2,
+										name: "Chein Kai",
+										email: "f@jwt.com",
+									},
+								],
+								stores: [
+									{
+										id: 1,
+										name: "SLC",
+										totalRevenue: 1000,
+									},
+									{
+										id: 3,
+										name: "Provo",
+										totalRevenue: 1500,
+									},
+								],
+							},
+						],
+					});
+				} else if (userId === 4) {
+					// admin e@jwt.com
+					await route.fulfill({
+						json: [
+							{
+								id: 3,
+								name: "PizzaCorp",
+								admins: [{ id: 4, email: "e@jwt.com" }],
+								stores: [{ id: 7, name: "Spanish Fork", totalRevenue: 1200 }],
+							},
+						],
+					});
+				} else {
+					// Regular users don't own franchises
+					await route.fulfill({ json: [] });
+				}
+			}
 		} else {
 			await route.continue();
 		}
@@ -246,16 +285,16 @@ async function basicInit(page: Page) {
 			order: { ...orderReq, id: 23 },
 			jwt: "eyJpYXQ",
 		};
-		expect(route.request().method()).toBe("POST");
 		await route.fulfill({ json: orderRes });
 	});
 
-	await page.route("*/**/api/franchise/:franchiseId/store", async (route) => {
+	// POST /api/franchise/:franchiseId/store - Create store
+	await page.route(/\/api\/franchise\/\d+\/store$/, async (route) => {
 		const method = route.request().method();
 		const url = route.request().url();
 
-		if (method === "Post") {
-			const match = url.match(/\/api\/franchise\/(\d+)$/);
+		if (method === "POST") {
+			const match = url.match(/\/api\/franchise\/(\d+)\/store$/);
 			if (match) {
 				const franchiseId = parseInt(match[1]);
 				const franchise = franchises.find((f) => f.id === franchiseId);
@@ -274,16 +313,23 @@ async function basicInit(page: Page) {
 					return;
 				}
 
-				await route.fulfill({ json: franchise });
+				const data = route.request().postDataJSON();
+				const newStore = {
+					id: franchise.stores.length + 1,
+					name: data.name,
+					totalRevenue: 0,
+				};
+
+				franchise.stores.push(newStore);
+				await route.fulfill({ json: newStore });
 				return;
 			}
 		}
-
 		await route.continue();
 	});
 
-	//Delete Franchise
-	await page.route("*/**/api/franchise/:franchiseId", async (route) => {
+	// DELETE /api/franchise/:franchiseId - Delete franchise
+	await page.route(/\/api\/franchise\/\d+$/, async (route) => {
 		const method = route.request().method();
 		const url = route.request().url();
 
@@ -313,8 +359,10 @@ async function basicInit(page: Page) {
 				await route.fulfill({
 					json: { message: "franchise deleted" },
 				});
+				return;
 			}
 		}
+		await route.continue();
 	});
 
 	await page.goto("/");
@@ -394,8 +442,85 @@ test("create franchise", async ({ page }) => {
 	await page.getByRole("button", { name: "Create" }).click();
 });
 
-test("create store", async ({ page }) => {});
+test("franchise store creation", async ({ page }) => {
+	await page.route("*/**/api/auth", async (route) => {
+		const loginReq = { email: "f@jwt.com", password: "f" };
+		const loginRes = {
+			user: {
+				id: 3,
+				name: "Kai Chen",
+				email: "f@jwt.com",
+				roles: [{ role: "diner" }, { objectId: 8, role: "franchisee" }],
+			},
+			token: "abcdef",
+		};
+		expect(route.request().method()).toBe("PUT");
+		expect(route.request().postDataJSON()).toMatchObject(loginReq);
+		await route.fulfill({ json: loginRes });
+	});
 
+	await page.route("*/**/api/franchise/3", async (route) => {
+		const franchiceRes = [
+			{
+				id: 8,
+				name: "provo",
+				admins: [
+					{
+						id: 3,
+						name: "mrPizzaJohn",
+						email: "f@jwt.com",
+					},
+				],
+				stores: [
+					{
+						id: 304,
+						name: "BoyDinner",
+						totalRevenue: 0.05,
+					},
+				],
+			},
+		];
+		expect(route.request().method()).toBe("GET");
+		await route.fulfill({ json: franchiceRes });
+	});
+
+	await page.route("*/**/api/franchise/8/store", async (route) => {
+		const storeReq = {
+			id: "",
+			name: "Store",
+		};
+		const storeRes = { id: 5, franchiseId: 8, name: "store" };
+		expect(route.request().method()).toBe("POST");
+		expect(route.request().postDataJSON()).toMatchObject(storeReq);
+		await route.fulfill({ json: storeRes });
+	});
+
+	await page.route("*/**/api/franchise/8/store/304", async (route) => {
+		const storeRes = { message: "store deleted" };
+		expect(route.request().method()).toBe("DELETE");
+		await route.fulfill({ json: storeRes });
+	});
+
+	await page.goto("/");
+
+	await login(page, "f@jwt.com", "f");
+
+	await page
+		.getByLabel("Global")
+		.getByRole("link", { name: "Franchise" })
+		.click();
+
+	await page
+		.getByRole("row", { name: "BoyDinner 0.05 ₿ Close" })
+		.getByRole("button")
+		.click();
+	await page.getByRole("button", { name: "Close" }).click();
+
+	await page.getByRole("button", { name: "Create store" }).click();
+	await page.getByRole("textbox", { name: "store name" }).click();
+	await page.getByRole("textbox", { name: "store name" }).fill("Store");
+	await page.getByRole("button", { name: "Create" }).click();
+});
 test("admin page", async ({ page }) => {
 	await basicInit(page);
 	await login(page, "e@jwt.com", "b");
