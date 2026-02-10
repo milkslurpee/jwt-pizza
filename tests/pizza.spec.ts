@@ -25,7 +25,101 @@ async function basicInit(page: Page) {
 			password: "b",
 			roles: [{ role: Role.Admin }],
 		},
+		"f@jwt.com": {
+			id: "2",
+			name: "Chein Kai",
+			email: "f@jwt.com",
+			password: "c",
+			roles: [{ role: Role.Franchisee }],
+		},
 	};
+
+	let franchises = [
+		{
+			id: 1,
+			name: "pizzaPocket",
+			admins: [
+				{
+					id: 2,
+					name: "pizza franchisee",
+					email: "f@jwt.com",
+				},
+			],
+			stores: [
+				{
+					id: 1,
+					name: "SLC",
+					totalRevenue: 1000,
+				},
+				{
+					id: 3,
+					name: "Provo",
+					totalRevenue: 1500,
+				},
+			],
+		},
+		{
+			id: 2,
+			name: "LotaPizza",
+			admins: [
+				{
+					id: 5,
+					name: "Franchise Owner",
+					email: "franchisee@jwt.com",
+				},
+			],
+			stores: [
+				{
+					id: 4,
+					name: "Lehi",
+					totalRevenue: 2000,
+				},
+				{
+					id: 5,
+					name: "Springville",
+					totalRevenue: 1800,
+				},
+				{
+					id: 6,
+					name: "American Fork",
+					totalRevenue: 2200,
+				},
+			],
+		},
+		{
+			id: 3,
+			name: "PizzaCorp",
+			admins: [
+				{
+					id: 4,
+					name: "Chai Ken",
+					email: "e@jwt.com",
+				},
+			],
+			stores: [
+				{
+					id: 7,
+					name: "Spanish Fork",
+					totalRevenue: 1200,
+				},
+			],
+		},
+	];
+
+	// ✅ MUST BE FIRST
+	await page.route(/\/api\/franchise\/\d+\/store$/, async (route) => {
+		const StoreReq = route.request().postDataJSON();
+
+		expect(route.request().method()).toBe("POST");
+
+		await route.fulfill({
+			json: {
+				id: 99,
+				name: StoreReq.name,
+				totalRevenue: 0,
+			},
+		});
+	});
 
 	// Authorize login for the given user
 	await page.route("*/**/api/auth", async (route) => {
@@ -104,23 +198,21 @@ async function basicInit(page: Page) {
 
 	// Standard franchises and stores
 	await page.route(/\/api\/franchise(\?.*)?$/, async (route) => {
-		const franchiseRes = {
-			franchises: [
-				{
-					id: 2,
-					name: "LotaPizza",
-					stores: [
-						{ id: 4, name: "Lehi" },
-						{ id: 5, name: "Springville" },
-						{ id: 6, name: "American Fork" },
-					],
-				},
-				{ id: 3, name: "PizzaCorp", stores: [{ id: 7, name: "Spanish Fork" }] },
-				{ id: 4, name: "topSpot", stores: [] },
-			],
-		};
 		expect(route.request().method()).toBe("GET");
-		await route.fulfill({ json: franchiseRes });
+
+		await route.fulfill({
+			json: {
+				franchises: franchises.map((f) => ({
+					id: f.id,
+					name: f.name,
+					admins: f.admins,
+					stores: f.stores.map((s) => ({
+						id: s.id,
+						name: s.name,
+					})),
+				})),
+			},
+		});
 	});
 
 	// Order a pizza.
@@ -148,6 +240,73 @@ async function basicInit(page: Page) {
 		};
 		expect(route.request().method()).toBe("POST");
 		await route.fulfill({ json: franchiseRes });
+	});
+
+	await page.route(/\/api\/franchise\/\d+$/, async (route) => {
+		const method = route.request().method();
+		const url = route.request().url();
+
+		if (method === "Post") {
+			const match = url.match(/\/api\/franchise\/(\d+)$/);
+			if (match) {
+				const franchiseId = parseInt(match[1]);
+				const franchise = franchises.find((f) => f.id === franchiseId);
+
+				if (!franchise) {
+					await route.fulfill({ status: 404 });
+					return;
+				}
+
+				// Only allow franchisees to access this
+				if (!loggedInUser?.roles?.some((r) => r.role === Role.Franchisee)) {
+					await route.fulfill({
+						status: 403,
+						json: { error: "Not a franchisee" },
+					});
+					return;
+				}
+
+				await route.fulfill({ json: franchise });
+				return;
+			}
+		}
+
+		await route.continue();
+	});
+
+	//Delete Franchise
+	await page.route(/\/api\/franchise\/\d+$/, async (route) => {
+		const method = route.request().method();
+		const url = route.request().url();
+
+		if (method === "DELETE") {
+			const match = url.match(/\/api\/franchise\/(\d+)$/);
+			if (match) {
+				const franchiseId = parseInt(match[1]);
+				if (
+					!loggedInUser ||
+					!loggedInUser.roles?.some((r) => r.role === Role.Admin)
+				) {
+					await route.fulfill({
+						status: 403,
+						json: { error: "Only admins can delete franchises" },
+					});
+					return;
+				}
+				const franchiseIndex = franchises.findIndex(
+					(f) => f.id === franchiseId,
+				);
+				if (franchiseIndex === -1) {
+					await route.fulfill({ status: 404 });
+					return;
+				}
+				franchises.splice(franchiseIndex, 1);
+
+				await route.fulfill({
+					json: { message: "franchise deleted" },
+				});
+			}
+		}
 	});
 
 	await page.goto("/");
@@ -213,7 +372,7 @@ test("purchase with login", async ({ page }) => {
 	await expect(page.getByText("0.008")).toBeVisible();
 });
 
-test("create and delete franchise", async ({ page }) => {
+test("create franchise", async ({ page }) => {
 	await basicInit(page);
 	await login(page, "e@jwt.com", "b");
 	await page.getByRole("link", { name: "Admin" }).click();
@@ -227,7 +386,46 @@ test("create and delete franchise", async ({ page }) => {
 	await page.getByRole("button", { name: "Create" }).click();
 });
 
-test("Franchise About and History", async ({ page }) => {
+test("create store", async ({ page }) => {
+	await basicInit(page);
+	await page.getByRole("link", { name: "Login" }).click();
+	await page.getByRole("textbox", { name: "Email address" }).fill("f@jwt.com");
+	await page.getByRole("textbox", { name: "Password" }).fill("c");
+	await page.getByRole("button", { name: "Login" }).click();
+	await page
+		.getByLabel("Global")
+		.getByRole("link", { name: "Franchise" })
+		.click();
+	await page.getByRole("button", { name: "Create store" }).click();
+	await page.getByRole("textbox", { name: "store name" }).click();
+	await page.getByRole("textbox", { name: "store name" }).fill("chilidogs!");
+	await page.getByRole("button", { name: "Create" }).click();
+	await page.getByRole("link", { name: "Logout" }).click();
+});
+
+test("close franchise", async ({ page }) => {
+	await basicInit(page);
+	await login(page, "e@jwt.com", "b");
+	await page.getByRole("link", { name: "Admin" }).click();
+});
+
+test("close franchise as admin", async ({ page }) => {
+	await basicInit(page);
+	await login(page, "e@jwt.com", "b"); // Log in as admin
+	await page.getByRole("link", { name: "Admin" }).click();
+
+	await page.waitForTimeout(1000);
+	const pizzaCorpRow = page.locator("tr", { hasText: "PizzaCorp" });
+	await pizzaCorpRow.getByRole("button", { name: /delete|close/i }).click();
+
+	if (await page.getByRole("button", { name: /confirm|yes/i }).isVisible()) {
+		await page.getByRole("button", { name: /confirm|yes/i }).click();
+	}
+
+	await expect(page.locator("tr", { hasText: "PizzaCorp" })).not.toBeVisible();
+});
+
+test("franchise, about, and history", async ({ page }) => {
 	await basicInit(page);
 	await page.getByRole("link", { name: "Franchise" }).nth(1).click();
 	await page.getByRole("link", { name: "About" }).click();
