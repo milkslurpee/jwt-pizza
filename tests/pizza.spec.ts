@@ -213,7 +213,7 @@ test("purchase with login", async ({ page }) => {
 	await expect(page.getByText("0.008")).toBeVisible();
 });
 
-test("create franchise", async ({ page }) => {
+test("create and delete franchise", async ({ page }) => {
 	await basicInit(page);
 	await login(page, "e@jwt.com", "b");
 	await page.getByRole("link", { name: "Admin" }).click();
