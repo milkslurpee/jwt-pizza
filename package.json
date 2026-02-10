@@ -11,18 +11,30 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^25.2.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "typescript": "^5.5.4",
-    "vite": "^5.2.8"
+    "vite": "^7.3.1"
   },
   "dependencies": {
     "preline": "^2.1.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-router-dom": "^6.22.3"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/milkslurpee/jwt-pizza.git"
+  },
+  "keywords": [],
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/milkslurpee/jwt-pizza/issues"
+  },
+  "homepage": "https://github.com/milkslurpee/jwt-pizza#readme"
 }

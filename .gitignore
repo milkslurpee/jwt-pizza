@@ -4,4 +4,6 @@ cookies.txt
 config.js
 coverage
 dist
+playwright-report/
+test-results/
 **/.vite
