@@ -425,8 +425,6 @@ test("purchase with login", async ({ page }) => {
 	await page.getByRole("button", { name: "Cancel" }).click();
 	await page.getByRole("button", { name: "Checkout" }).click();
 	await page.getByRole("button", { name: "Pay now" }).click();
-	await page.getByRole("button", { name: "Verify" }).click();
-	await page.getByRole("button", { name: "Close" }).click();
 	await page.getByRole("button", { name: "Order more" }).click();
 
 	// Check balance
