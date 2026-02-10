@@ -422,10 +422,15 @@ test("purchase with login", async ({ page }) => {
 	await expect(page.locator("tbody")).toContainText("Veggie");
 	await expect(page.locator("tbody")).toContainText("Pepperoni");
 	await expect(page.locator("tfoot")).toContainText("0.008 ₿");
+	await page.getByRole("button", { name: "Cancel" }).click();
+	await page.getByRole("button", { name: "Checkout" }).click();
 	await page.getByRole("button", { name: "Pay now" }).click();
+	await page.getByRole("button", { name: "Verify" }).click();
+	await page.getByRole("button", { name: "Close" }).click();
+	await page.getByRole("button", { name: "Order more" }).click();
 
 	// Check balance
-	await expect(page.getByText("0.008")).toBeVisible();
+	await expect(page.locator("h2")).toContainText("Awesome is a click away");
 });
 
 test("create franchise", async ({ page }) => {
@@ -502,9 +507,7 @@ test("store creation", async ({ page }) => {
 	});
 
 	await page.goto("/");
-
 	await login(page, "f@jwt.com", "f");
-
 	await page
 		.getByLabel("Global")
 		.getByRole("link", { name: "Franchise" })
@@ -521,7 +524,7 @@ test("store creation", async ({ page }) => {
 	await page.getByRole("textbox", { name: "store name" }).fill("Store");
 	await page.getByRole("button", { name: "Create" }).click();
 });
-test("admin page", async ({ page }) => {
+test("close franchise", async ({ page }) => {
 	await basicInit(page);
 	await login(page, "e@jwt.com", "b");
 	await page.getByRole("link", { name: "Admin" }).click();
