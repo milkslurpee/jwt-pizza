@@ -89,12 +89,12 @@ export default function AdminDashboard(props: Props) {
 			<View title="Mama Ricci's kitchen">
 				<div className="text-start py-8 px-4 sm:px-6 lg:px-8">
 					<h3 className="text-neutral-100 text-xl">Franchises</h3>
-					<div className="bg-neutral-100 overflow-clip my-4">
+					<div className="bg-neutral-100 overflow-clip my-4 rounded-lg">
 						<div className="flex flex-col">
 							<div className="-m-1.5 overflow-x-auto">
 								<div className="p-1.5 min-w-full inline-block align-middle">
-									<div className="overflow-hidden">
-										<table className="min-w-full divide-y divide-gray-200">
+									<div className="overflow-hidden rounded-lg">
+										<table className="min-w-full divide-y divide-gray-200 rounded-lg">
 											<thead className="uppercase text-neutral-100 bg-slate-400 border-b-2 border-gray-500">
 												<tr>
 													{[
@@ -107,7 +107,7 @@ export default function AdminDashboard(props: Props) {
 														<th
 															key={header}
 															scope="col"
-															className="px-6 py-3 text-center text-xs font-medium"
+															className="px-6 py-3 text-left text-xs font-medium"
 														>
 															{header}
 														</th>
@@ -135,7 +135,7 @@ export default function AdminDashboard(props: Props) {
 															<td className="px-6 py-1 whitespace-nowrap text-end text-sm font-medium">
 																<button
 																	type="button"
-																	className="px-2 py-1 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-1 border-orange-400 text-orange-400  hover:border-orange-800 hover:text-orange-800"
+																	className="px-2 py-1 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-1 border-orange-400 text-orange-400 hover:border-orange-800 hover:text-orange-800"
 																	onClick={() => closeFranchise(franchise)}
 																>
 																	<TrashIcon />
@@ -197,7 +197,7 @@ export default function AdminDashboard(props: Props) {
 														className="text-end text-sm font-medium"
 													>
 														<button
-															className="w-12 p-1 text-sm font-semibold rounded-lg border border-transparent bg-white text-grey border-grey m-1 hover:bg-orange-200 disabled:bg-neutral-300 "
+															className="w-12 p-1 text-sm font-semibold rounded-lg border border-transparent bg-white text-grey border-grey m-1 hover:bg-orange-200 disabled:bg-neutral-300"
 															onClick={() =>
 																setFranchisePage(franchisePage - 1)
 															}
@@ -234,19 +234,19 @@ export default function AdminDashboard(props: Props) {
 
 				<div className="text-start py-8 px-4 sm:px-6 lg:px-8">
 					<h3 className="text-neutral-100 text-xl">Users</h3>
-					<div className="bg-neutral-100 overflow-clip my-4">
+					<div className="bg-neutral-100 overflow-clip my-4 rounded-lg">
 						<div className="flex flex-col">
 							<div className="-m-1.5 overflow-x-auto">
 								<div className="p-1.5 min-w-full inline-block align-middle">
-									<div className="overflow-hidden">
-										<table className="min-w-full divide-y divide-gray-200">
+									<div className="overflow-hidden rounded-lg">
+										<table className="min-w-full divide-y divide-gray-200 rounded-lg">
 											<thead className="uppercase text-neutral-100 bg-slate-400 border-b-2 border-gray-500">
 												<tr>
 													{["Name", "Email", "Role", "Action"].map((header) => (
 														<th
 															key={header}
 															scope="col"
-															className="px-6 py-3 text-center text-xs font-medium"
+															className="px-6 py-3 text-left text-xs font-medium"
 														>
 															{header}
 														</th>
