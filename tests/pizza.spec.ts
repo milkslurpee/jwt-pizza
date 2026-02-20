@@ -106,6 +106,69 @@ async function basicInit(page: Page) {
 		},
 	];
 
+	// Mocking the API call for the user list
+	await page.route(/\/api\/user\?page=\d+&limit=\d+&name=.*/, async (route) => {
+		// Extract query parameters from the URL
+		const url = route.request().url();
+		const {
+			page = "0",
+			limit = "10",
+			name = "*",
+		} = url.match(/page=(\d+)&limit=(\d+)&name=(.*)/)?.groups || {};
+
+		// Mock user data based on what your backend provides
+		const users = [
+			{
+				id: 1,
+				name: "Kai Chen",
+				email: "d@jwt.com",
+				roles: [{ role: "Diner" }],
+			},
+			{
+				id: 2,
+				name: "Chai Ken",
+				email: "e@jwt.com",
+				roles: [{ role: "Admin" }],
+			},
+			{
+				id: 3,
+				name: "Chein Kai",
+				email: "f@jwt.com",
+				roles: [{ role: "Franchisee" }],
+			},
+		];
+
+		console.log("The filtered name: " + name);
+
+		// Apply name filtering if any
+		const filteredUsers = users.filter((user) =>
+			user.name.toLowerCase().includes(name.replace("*", "").toLowerCase()),
+		);
+
+		console.log("Filtered users:", filteredUsers);
+
+		// Pagination logic
+		const pageNumber = parseInt(page, 10) || 0;
+		const limitNumber = parseInt(limit, 10) || 10;
+
+		// Paginate the filtered users
+		const paginatedUsers = filteredUsers.slice(
+			pageNumber * limitNumber,
+			(pageNumber + 1) * limitNumber,
+		);
+
+		// Determine if there are more users to load
+		const more = filteredUsers.length > (pageNumber + 1) * limitNumber;
+
+		// Fulfill the route with the mocked data
+		await route.fulfill({
+			json: {
+				users: paginatedUsers,
+				more: more,
+			},
+		});
+	});
+
 	// Authorize login for the given user
 	await page.route("*/**/api/auth", async (route) => {
 		const method = route.request().method();
@@ -577,6 +640,25 @@ test("franchise, about, and history", async ({ page }) => {
 
 test("updateUser", async ({ page }) => {
 	await basicInit(page);
+	await login(page, "d@jwt.com", "a");
+
+	await expect(page.getByRole("link", { name: "kc" })).toBeVisible(); // Ensure the profile link is visible
+	await page.getByRole("link", { name: "kc" }).click();
+
+	await page.getByRole("button", { name: "Edit" }).click();
+	await expect(page.locator("h3")).toContainText("Edit user");
+	await page.getByRole("textbox").last().fill("b");
+	await page.getByRole("button", { name: "Update" }).click();
+
+	await page.waitForSelector('[role="dialog"].hidden', { state: "attached" });
+
+	// Log out and log in with new email
+	await page.getByRole("link", { name: "Logout" }).click();
+	await login(page, "d@jwt.com", "b");
+});
+
+test("updateAdmin", async ({ page }) => {
+	await basicInit(page);
 	await login(page, "e@jwt.com", "b");
 
 	await expect(page.getByRole("link", { name: "ck" })).toBeVisible(); // Ensure the profile link is visible
@@ -595,55 +677,71 @@ test("updateUser", async ({ page }) => {
 });
 
 // //Make sure jwt-pizza-service is running
-// test("updateAdmin", async ({ page }) => {
-// 	await page.goto("/");
-// 	await login(page, "a@jwt.com", "admin");
-// 	await page.getByRole("link", { name: "j" }).click();
-// 	await page.getByRole("button", { name: "Edit" }).click();
-// 	await expect(page.locator("h3")).toContainText("Edit user");
-// 	await page.getByRole("textbox").last().fill("sauce");
-// 	await page.getByRole("button", { name: "Update" }).click();
-// 	await page.waitForSelector('[role="dialog"].hidden', { state: "attached" });
+test("updateFranchisee", async ({ page }) => {
+	await basicInit(page);
+	await login(page, "f@jwt.com", "c");
 
-// 	await page.getByRole("link", { name: "Logout" }).click();
-// 	await login(page, "a@jwt.com", "sauce");
+	await expect(page.getByRole("link", { name: "ck" })).toBeVisible(); // Ensure the profile link is visible
+	await page.getByRole("link", { name: "ck" }).click();
 
-// 	await page.getByRole("link", { name: "j" }).click();
-// 	await page.getByRole("button", { name: "Edit" }).click();
-// 	await expect(page.locator("h3")).toContainText("Edit user");
-// 	await page.getByRole("textbox").last().fill("admin");
-// 	await page.getByRole("button", { name: "Update" }).click();
-// 	await page.waitForSelector('[role="dialog"].hidden', { state: "attached" });
+	await page.getByRole("button", { name: "Edit" }).click();
+	await expect(page.locator("h3")).toContainText("Edit user");
+	await page.getByRole("textbox").last().fill("d");
+	await page.getByRole("button", { name: "Update" }).click();
 
-// 	await page.getByRole("link", { name: "Logout" }).click();
-// 	await login(page, "a@jwt.com", "admin");
-// 	await page.getByRole("link", { name: "Logout" }).click();
-// });
+	await page.waitForSelector('[role="dialog"].hidden', { state: "attached" });
 
-// //Make sure jwt-pizza-service is running
-// test("updateFranchisee", async ({ page }) => {
-// 	await page.goto("/");
-// 	await login(page, "f@jwt.com", "franchisee");
-// 	await page.getByRole("link", { name: "pf" }).click();
-// 	await page.getByRole("button", { name: "Edit" }).click();
-// 	await expect(page.locator("h3")).toContainText("Edit user");
-// 	await page.getByRole("textbox").last().fill("sauce");
-// 	await page.getByRole("button", { name: "Update" }).click();
-// 	await page.waitForSelector('[role="dialog"].hidden', { state: "attached" });
+	// Log out and log in with new email
+	await page.getByRole("link", { name: "Logout" }).click();
+	await login(page, "f@jwt.com", "d");
+});
 
-// 	await page.getByRole("link", { name: "Logout" }).click();
-// 	await login(page, "f@jwt.com", "sauce");
+test("ListUsers", async ({ page }) => {
+	await basicInit(page);
+	await login(page, "e@jwt.com", "b");
 
-// 	await page.getByRole("link", { name: "pf" }).click();
-// 	await page.getByRole("button", { name: "Edit" }).click();
-// 	await expect(page.locator("h3")).toContainText("Edit user");
-// 	await page.getByRole("textbox").last().fill("franchisee");
-// 	await page.getByRole("button", { name: "Update" }).click();
-// 	await page.waitForSelector('[role="dialog"].hidden', { state: "attached" });
+	// Ensure the profile link is visible and click it
+	await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
+	await page.getByRole("link", { name: "Admin" }).click();
 
-// 	await page.getByRole("link", { name: "Logout" }).click();
-// 	await login(page, "f@jwt.com", "franchisee");
-// 	await page.getByRole("link", { name: "Logout" }).click();
+	// Ensure the "Users" section is visible
+	await expect(page.locator("h3").nth(1)).toContainText("Users");
+
+	// Wait for the table rows to be rendered
+	await page.waitForSelector("table tbody tr"); // Adjust if necessary
+
+	// Assert that users are displayed
+	await expect(page.locator('td:has-text("Kai Chen")')).toBeVisible();
+	await expect(page.locator('td:has-text("Chai Ken")')).toBeVisible();
+	await expect(page.locator('td:has-text("Chein Kai")')).toBeVisible();
+});
+
+test("FilterUsers", async ({ page }) => {
+	await basicInit(page);
+	await login(page, "e@jwt.com", "b");
+
+	await expect(page.getByRole("link", { name: "Admin" })).toBeVisible(); // Ensure the profile link is visible
+	await page.getByRole("link", { name: "Admin" }).click();
+
+	await expect(page.locator("h3").nth(1)).toContainText("Users");
+
+	await page.getByRole("textbox", { name: "Filter Users" }).fill("Kai Chen");
+	await page.getByRole("button", { name: "Submit" }).nth(1).click();
+	await expect(page.locator('td:has-text("Chein Kai")')).not.toBeVisible();
+});
+
+// test("DeleteUser", async ({ page }) => {
+// 	await basicInit(page);
+// 	await login(page, "e@jwt.com", "b");
+
+// 	await expect(page.getByRole("link", { name: "Admin" })).toBeVisible(); // Ensure the profile link is visible
+// 	await page.getByRole("link", { name: "Admin" }).click();
+
+// 	await expect(page.locator("h3").nth(1)).toContainText("Users");
+
+// 	await page.getByRole("textbox", { name: "Filter Users" }).fill("Chein Kai");
+// 	await page.getByRole("button", { name: "Submit" }).nth(1).click();
+// 	await expect(page.locator('td:has-text("Chein Kai")')).not.toBeVisible();
 // });
 
 async function login(page: Page, email: string, password: string) {
