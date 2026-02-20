@@ -78,9 +78,10 @@ export default function AdminDashboard(props: Props) {
 		setUserPage(0);
 	}
 
-	async function deleteUser(userId: string) {
-		await pizzaService.deleteUser(userId);
-		setUserList(await pizzaService.getUsers(userPage, 10, "*"));
+	async function deleteUser(user: User) {
+		navigate("/admin-dashboard/delete-user", {
+			state: { user: user },
+		});
 	}
 
 	let response = <NotFound />;
@@ -269,7 +270,7 @@ export default function AdminDashboard(props: Props) {
 															<button
 																type="button"
 																className="px-2 py-1 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-1 border-orange-400 text-orange-400 hover:border-orange-800 hover:text-orange-800"
-																onClick={() => deleteUser(u.id!)}
+																onClick={() => deleteUser(u!)}
 															>
 																<TrashIcon />
 																Delete

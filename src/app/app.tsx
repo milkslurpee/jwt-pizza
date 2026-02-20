@@ -25,6 +25,7 @@ import Breadcrumb from "../components/breadcrumb";
 import { pizzaService } from "../service/service";
 import { Role, User } from "../service/pizzaService";
 import "preline/preline";
+import DeleteUser from "../views/deleteUser";
 
 declare global {
 	interface Window {
@@ -101,6 +102,12 @@ export default function App() {
 			title: "Close franchise",
 			to: "/:subPath?/close-franchise",
 			component: <CloseFranchise />,
+			display: [],
+		},
+		{
+			title: "Delete User",
+			to: "/:subPath?/delete-user",
+			component: <DeleteUser />,
 			display: [],
 		},
 		{
