@@ -62,6 +62,11 @@ type User = {
 	roles?: UserRole[];
 };
 
+type UserList = {
+	users: User[];
+	more: boolean;
+};
+
 type Store = {
 	id: string;
 	name: string;
@@ -103,6 +108,7 @@ interface PizzaService {
 	register(email: string, password: string, role: string): Promise<User>;
 	logout(): void;
 	getUser(): Promise<User | null>;
+	getUsers(page: number, limit: number, nameFilter: string): Promise<UserList>;
 	getMenu(): Promise<Menu>;
 	getOrders(user: User): Promise<OrderHistory>;
 	order(order: Order): Promise<OrderResponse>;
@@ -119,12 +125,14 @@ interface PizzaService {
 	closeStore(franchise: Franchise, store: Store): Promise<null>;
 	docs(docType: string): Promise<Endpoints>;
 	updateUser(user: User): Promise<User>;
+	deleteUser(userId: string): Promise<void>;
 }
 
 export {
 	Role,
 	PizzaService,
 	User,
+	UserList,
 	Menu,
 	Pizza,
 	OrderHistory,
