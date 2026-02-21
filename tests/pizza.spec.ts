@@ -107,66 +107,105 @@ async function basicInit(page: Page) {
 	];
 
 	// Mocking the API call for the user list
-	await page.route(/\/api\/user\?page=\d+&limit=\d+&name=.*/, async (route) => {
-		// Extract query parameters from the URL
+	await page.route(/\/api\/user(\?.*)?$/, async (route) => {
 		const url = route.request().url();
-		const {
-			page = "0",
-			limit = "10",
-			name = "*",
-		} = url.match(/page=(\d+)&limit=(\d+)&name=(.*)/)?.groups || {};
+		const urlObj = new URL(url);
 
-		// Mock user data based on what your backend provides
-		const users = [
-			{
-				id: 1,
-				name: "Kai Chen",
-				email: "d@jwt.com",
-				roles: [{ role: "Diner" }],
-			},
-			{
-				id: 2,
-				name: "Chai Ken",
-				email: "e@jwt.com",
-				roles: [{ role: "Admin" }],
-			},
-			{
-				id: 3,
-				name: "Chein Kai",
-				email: "f@jwt.com",
-				roles: [{ role: "Franchisee" }],
-			},
-		];
+		const page = urlObj.searchParams.get("page") || "0";
+		const limit = urlObj.searchParams.get("limit") || "10";
+		const name = urlObj.searchParams.get("name") || "";
 
-		console.log("The filtered name: " + name);
+		// Convert validUsers object to array for the user list
+		let users = Object.values(validUsers).map((user) => ({
+			id: parseInt(user.id || "0"),
+			name: user.name || "",
+			email: user.email || "",
+			roles: user.roles || [],
+		}));
 
-		// Apply name filtering if any
-		const filteredUsers = users.filter((user) =>
-			user.name.toLowerCase().includes(name.replace("*", "").toLowerCase()),
-		);
+		let filteredUsers = users;
+		if (name && name !== "*") {
+			const searchName = name.toLowerCase().replace(/\*/g, "");
+			filteredUsers = users.filter((user) =>
+				user.name.toLowerCase().includes(searchName),
+			);
+		}
 
-		console.log("Filtered users:", filteredUsers);
-
-		// Pagination logic
 		const pageNumber = parseInt(page, 10) || 0;
 		const limitNumber = parseInt(limit, 10) || 10;
 
-		// Paginate the filtered users
 		const paginatedUsers = filteredUsers.slice(
 			pageNumber * limitNumber,
 			(pageNumber + 1) * limitNumber,
 		);
 
-		// Determine if there are more users to load
 		const more = filteredUsers.length > (pageNumber + 1) * limitNumber;
-
-		// Fulfill the route with the mocked data
 		await route.fulfill({
 			json: {
 				users: paginatedUsers,
 				more: more,
 			},
 		});
+	});
+
+	// DELETE handler - actually remove from validUsers
+	await page.route(/\/api\/user\/\d+$/, async (route) => {
+		const method = route.request().method();
+		const url = route.request().url();
+
+		if (method === "DELETE") {
+			const match = url.match(/\/api\/user\/(\d+)$/);
+			if (match) {
+				const userId = match[1];
+				const userEmail = Object.keys(validUsers).find(
+					(email) => validUsers[email].id === userId,
+				);
+
+				if (userEmail) {
+					console.log(`Deleting user: ${userEmail}`);
+					delete validUsers[userEmail];
+				}
+
+				await route.fulfill({
+					status: 200,
+					contentType: "application/json",
+					body: JSON.stringify({ message: "user deleted" }),
+				});
+			}
+			return;
+		}
+
+		if (method === "PUT") {
+			const data = route.request().postDataJSON();
+			const userEmail = Object.keys(validUsers).find(
+				(email) => validUsers[email].id === data.id,
+			);
+
+			if (userEmail) {
+				validUsers[userEmail] = {
+					...validUsers[userEmail],
+					name: data.name || validUsers[userEmail].name,
+					email: data.email || validUsers[userEmail].email,
+					password: data.password || validUsers[userEmail].password,
+				};
+			}
+
+			const updatedUser = {
+				id: data.id,
+				name: data.name || "pizza dinerx",
+				email: data.email || "updated@jwt.com",
+				password: data.password || "newpassword",
+				roles: data.roles || [{ role: "Diner" }],
+			};
+
+			await route.fulfill({
+				status: 200,
+				json: { user: updatedUser, token: "newToken" },
+			});
+			return;
+		}
+
+		await route.fallback();
 	});
 
 	// Authorize login for the given user
@@ -218,31 +257,6 @@ async function basicInit(page: Page) {
 		}
 	});
 
-	await page.route(/\/api\/user\/\d+$/, async (route) => {
-		const method = route.request().method();
-		const data = route.request().postDataJSON();
-
-		if (method === "PUT") {
-			// Assuming the request data comes from the frontend form (user name, email, etc.)
-			const updatedUser = {
-				id: data.id,
-				name: data.name || "pizza dinerx", // Name that is updated
-				email: data.email || "updated@jwt.com", // Email that is updated
-				password: data.password || "newpassword", // Password that is updated
-				roles: data.roles || [{ role: "Diner" }],
-			};
-
-			// Returning the updated user
-			await route.fulfill({
-				status: 200,
-				json: { user: updatedUser, token: "newToken" },
-			});
-		} else {
-			await route.continue();
-		}
-	});
-
-	// Return the currently logged in user
 	await page.route("*/**/api/user/me", async (route) => {
 		await route.fulfill({ json: loggedInUser });
 	});
@@ -269,8 +283,6 @@ async function basicInit(page: Page) {
 	});
 
 	// GET and POST /api/franchise - Consolidated handler
-	// In basicInit function:
-
 	// 1. Public franchise endpoint (for all users browsing)
 	await page.route(/\/api\/franchise(\?.*)?$/, async (route) => {
 		const method = route.request().method();
@@ -638,7 +650,44 @@ test("franchise, about, and history", async ({ page }) => {
 	await page.getByRole("link", { name: "History" }).click();
 });
 
-test("updateUser", async ({ page }) => {
+test("updateName", async ({ page }) => {
+	await basicInit(page);
+	await login(page, "d@jwt.com", "a");
+
+	await expect(page.getByRole("link", { name: "kc" })).toBeVisible(); // Ensure the profile link is visible
+	await page.getByRole("link", { name: "kc" }).click();
+
+	await page.getByRole("button", { name: "Edit" }).click();
+	await expect(page.locator("h3")).toContainText("Edit user");
+	await page.getByRole("textbox").first().fill("Pizza McPizzaface");
+	await page.getByRole("button", { name: "Update" }).click();
+
+	await page.waitForSelector('[role="dialog"].hidden', { state: "attached" });
+
+	// Log out and log in with new email
+	await page.getByRole("link", { name: "Logout" }).click();
+});
+
+test("updateEmail", async ({ page }) => {
+	await basicInit(page);
+	await login(page, "d@jwt.com", "a");
+
+	await expect(page.getByRole("link", { name: "kc" })).toBeVisible(); // Ensure the profile link is visible
+	await page.getByRole("link", { name: "kc" }).click();
+
+	await page.getByRole("button", { name: "Edit" }).click();
+	await expect(page.locator("h3")).toContainText("Edit user");
+	await page.getByRole("textbox").nth(1).fill("dweeb@jwt.com");
+	await page.getByRole("button", { name: "Update" }).click();
+
+	await page.waitForSelector('[role="dialog"].hidden', { state: "attached" });
+
+	// Log out and log in with new email
+	await page.getByRole("link", { name: "Logout" }).click();
+	await login(page, "dweeb@jwt.com", "b");
+});
+
+test("updatePassword", async ({ page }) => {
 	await basicInit(page);
 	await login(page, "d@jwt.com", "a");
 
@@ -657,60 +706,13 @@ test("updateUser", async ({ page }) => {
 	await login(page, "d@jwt.com", "b");
 });
 
-test("updateAdmin", async ({ page }) => {
-	await basicInit(page);
-	await login(page, "e@jwt.com", "b");
-
-	await expect(page.getByRole("link", { name: "ck" })).toBeVisible(); // Ensure the profile link is visible
-	await page.getByRole("link", { name: "ck" }).click();
-
-	await page.getByRole("button", { name: "Edit" }).click();
-	await expect(page.locator("h3")).toContainText("Edit user");
-	await page.getByRole("textbox").last().fill("c");
-	await page.getByRole("button", { name: "Update" }).click();
-
-	await page.waitForSelector('[role="dialog"].hidden', { state: "attached" });
-
-	// Log out and log in with new email
-	await page.getByRole("link", { name: "Logout" }).click();
-	await login(page, "e@jwt.com", "c");
-});
-
-// //Make sure jwt-pizza-service is running
-test("updateFranchisee", async ({ page }) => {
-	await basicInit(page);
-	await login(page, "f@jwt.com", "c");
-
-	await expect(page.getByRole("link", { name: "ck" })).toBeVisible(); // Ensure the profile link is visible
-	await page.getByRole("link", { name: "ck" }).click();
-
-	await page.getByRole("button", { name: "Edit" }).click();
-	await expect(page.locator("h3")).toContainText("Edit user");
-	await page.getByRole("textbox").last().fill("d");
-	await page.getByRole("button", { name: "Update" }).click();
-
-	await page.waitForSelector('[role="dialog"].hidden', { state: "attached" });
-
-	// Log out and log in with new email
-	await page.getByRole("link", { name: "Logout" }).click();
-	await login(page, "f@jwt.com", "d");
-});
-
 test("ListUsers", async ({ page }) => {
 	await basicInit(page);
 	await login(page, "e@jwt.com", "b");
-
-	// Ensure the profile link is visible and click it
 	await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
 	await page.getByRole("link", { name: "Admin" }).click();
-
-	// Ensure the "Users" section is visible
 	await expect(page.locator("h3").nth(1)).toContainText("Users");
-
-	// Wait for the table rows to be rendered
-	await page.waitForSelector("table tbody tr"); // Adjust if necessary
-
-	// Assert that users are displayed
+	await page.waitForSelector("table tbody tr");
 	await expect(page.locator('td:has-text("Kai Chen")')).toBeVisible();
 	await expect(page.locator('td:has-text("Chai Ken")')).toBeVisible();
 	await expect(page.locator('td:has-text("Chein Kai")')).toBeVisible();
@@ -730,19 +732,21 @@ test("FilterUsers", async ({ page }) => {
 	await expect(page.locator('td:has-text("Chein Kai")')).not.toBeVisible();
 });
 
-// test("DeleteUser", async ({ page }) => {
-// 	await basicInit(page);
-// 	await login(page, "e@jwt.com", "b");
+test("DeleteUser", async ({ page }) => {
+	await basicInit(page);
+	await login(page, "e@jwt.com", "b");
 
-// 	await expect(page.getByRole("link", { name: "Admin" })).toBeVisible(); // Ensure the profile link is visible
-// 	await page.getByRole("link", { name: "Admin" }).click();
+	await expect(page.getByRole("link", { name: "Admin" })).toBeVisible(); // Ensure the profile link is visible
+	await page.getByRole("link", { name: "Admin" }).click();
 
-// 	await expect(page.locator("h3").nth(1)).toContainText("Users");
+	await expect(page.locator("h3").nth(1)).toContainText("Users");
 
-// 	await page.getByRole("textbox", { name: "Filter Users" }).fill("Chein Kai");
-// 	await page.getByRole("button", { name: "Submit" }).nth(1).click();
-// 	await expect(page.locator('td:has-text("Chein Kai")')).not.toBeVisible();
-// });
+	const userRow = page.locator("tr", { hasText: "Chein Kai" });
+	await userRow.getByRole("button", { name: "Delete" }).click();
+	await page.getByRole("button", { name: "Delete" }).click();
+	await expect(page.locator('td:has-text("Chein Kai")')).not.toBeVisible();
+	await expect(page.locator('td:has-text("Kai Chen")')).toBeVisible();
+});
 
 async function login(page: Page, email: string, password: string) {
 	await page.getByRole("link", { name: "Login" }).click();
