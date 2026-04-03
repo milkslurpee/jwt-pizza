@@ -1,4 +1,4 @@
-# Environment-Dependent Configuration Selection
+# Environment-Dependent Automated Config Selection
 
 Configuration management across multiple environments is a common challenge in DevOps. The core problem is straightforward: software often needs to behave differently depending on the hardware that it is running on. Manually managing those differences is error-prone and doesn't scale. Automation tools like Ansible and GitHub Actions exist largely to solve problems like this. My curiosity report is about an automated solution that I built in order to solve this kind of problem for an old video game that I like to play; Fallout New Vegas.
 
